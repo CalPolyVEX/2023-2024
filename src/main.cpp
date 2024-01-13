@@ -1,190 +1,57 @@
-//Notes
-/*
-	For corner shots, around 110 - 115 units for Shooter
-	For roller shots, around 130
-*/
-
 #include "main.h"
-#include "RobotSpecifics.h"
-#define M_PI 3.1415
 
-#ifdef GREEN
+/* Clawbot Practice
+#define LEFT_WHEELS_TOP_PORT 13
+#define LEFT_WHEELS_BOTTOM_PORT 14
+#define RIGHT_WHEELS_TOP_PORT 17
+#define RIGHT_WHEELS_BOTTOM_PORT 18
+#define INTAKE_PORT 15
+#define INTAKE_BUTTON DIGITAL_A
+*/
+#define UPPER_FLYWHEEL 1
+#define INTAKE_WHEEL 10
+#define LOWER_FLYWHEEL 15
 
-	const int8_t FRONT_LEFT_PORT = 13;
-	const int8_t FRONT_RIGHT_PORT = 2;
-	const int8_t BACK_LEFT_PORT = 15;
-	const int8_t BACK_RIGHT_PORT = 5;
+// Backward motors are reversed relative to other motors
+#define RIGHT_FORWARD_DRIVE 20
+#define RIGHT_BACKWARD_DRIVE 19
+#define RIGHT_UPPER_DRIVE 18
+#define LEFT_FORWARD_DRIVE 11
+#define LEFT_BACKWARD_DRIVE 12
+#define LEFT_UPPER_DRIVE 13
 
-	const int8_t GYRO_PORT = 7;
+// Wing ports
+const char LEFT_WING_PORT = 'A'; // three wire
+const char RIGHT_WING_PORT = 'B';
 
-	const int8_t SHOOTER_PORT1 = 18; //outside motor
-	const int8_t SHOOTER_PORT2 = 17; //inside motor
+#define GYRO_PORT 16
 
-	const int8_t INTAKE_PORT_R = 3; // might have switch
-	const int8_t INTAKE_PORT_L = 14;
-	const int8_t INTAKE_PORT_THREE = 4;
-
-	const char INDEXER_PORT = 'A'; // three wire
-    #define IntakeIn DIGITAL_R2
-    #define IntakeOut DIGITAL_R1
-    #define ShooterFast DIGITAL_X
-    #define ShooterOff DIGITAL_Y
-
-
-#else // Gold Robot
-
-	const int8_t FRONT_LEFT_PORT = 13;
-	const int8_t FRONT_RIGHT_PORT = 3;
-	const int8_t BACK_LEFT_PORT = 12;
-	const int8_t BACK_RIGHT_PORT = 2;
-
-	const int8_t GYRO_PORT = 6;
-
-	const int8_t SHOOTER_PORT1 = 9; //outside motor
-	const int8_t SHOOTER_PORT2 = 8; //inside motor
-
-	const int8_t INTAKE_PORT_R = 1; // might have switch
-	const int8_t INTAKE_PORT_L = 17;
-	const int8_t INTAKE_PORT_THREE = 16;
-
-	const char INDEXER_PORT = 'A'; // three wire
-
-    #define IntakeIn DIGITAL_X
-    #define IntakeOut DIGITAL_Y
-    #define ShooterFast DIGITAL_R1
-    #define ShooterOff DIGITAL_R2
-
-#endif
-
-#define MOTOR_MAX_SPEED 100
-
-//Component declaration
-pros::Motor front_left_mtr(FRONT_LEFT_PORT);
-pros::Motor front_right_mtr(FRONT_RIGHT_PORT);
-pros::Motor back_left_mtr(BACK_LEFT_PORT);
-pros::Motor back_right_mtr(BACK_RIGHT_PORT);
-
-pros::Motor Shooter1(SHOOTER_PORT1);
-pros::Motor Shooter2(SHOOTER_PORT2);
-pros::Motor IntakeR(INTAKE_PORT_R);
-pros::Motor IntakeL(INTAKE_PORT_L);
-pros::Motor Intake3(INTAKE_PORT_THREE);
-
-pros::Imu gyro(GYRO_PORT);
 double gyro_offset = 0;
+pros::Imu gyro(GYRO_PORT);
 
-// pneumatics
-pros::ADIDigitalOut indexer_piston(INDEXER_PORT);
+// Controller
+pros::Controller master(pros::E_CONTROLLER_MASTER);
+// Drive motors
+pros::Motor right_fwd_mtr(RIGHT_FORWARD_DRIVE);
+pros::Motor right_upp_mtr(RIGHT_UPPER_DRIVE);
+pros::Motor right_bwd_mtr(RIGHT_BACKWARD_DRIVE);
+pros::Motor left_fwd_mtr(LEFT_FORWARD_DRIVE);
+pros::Motor left_upp_mtr(LEFT_UPPER_DRIVE);
+pros::Motor left_bwd_mtr(LEFT_BACKWARD_DRIVE);
+// Flywheel and intake motor speed
+pros::Motor upper_flywheel_mtr(UPPER_FLYWHEEL);
+pros::Motor intake_mtr(INTAKE_WHEEL);
+pros::Motor lower_flywheel_mtr(LOWER_FLYWHEEL);
+// Piston control for wings
+pros::ADIDigitalOut left_wing_piston(LEFT_WING_PORT);
+pros::ADIDigitalOut right_wing_piston(RIGHT_WING_PORT);
 
-//helper functions to work with field-centric x-drive
-double getRawRotation() { //get data from the Vex IMU
-	double heading = gyro.get_heading();
-	return (heading == PROS_ERR_F ? 0 : heading);
-}
-
-double getRotation() { //subtracts an offset from the gyro value to stabilize
-	return getRawRotation() - gyro_offset;
-}
-
-void resetRotation() {
-	gyro_offset = getRawRotation();
-}
-
-void moveForward(int dist){
-	int rot = (dist*1000)/13;
-
-	front_left_mtr.move_relative(rot, MOTOR_MAX_SPEED);
-	front_right_mtr.move_relative(-rot, MOTOR_MAX_SPEED);
-	back_left_mtr.move_relative(rot, MOTOR_MAX_SPEED);
-	back_right_mtr.move_relative(-rot, MOTOR_MAX_SPEED);
-
-	pros::delay(500);
-}
-
-void moveReverse(int dist2){
-	int rot = (dist2*1000)/13;
-
-	front_left_mtr.move_relative(-rot, MOTOR_MAX_SPEED);
-	front_right_mtr.move_relative(rot, MOTOR_MAX_SPEED);
-	back_left_mtr.move_relative(-rot, MOTOR_MAX_SPEED);
-	back_right_mtr.move_relative(rot, MOTOR_MAX_SPEED);
-
-	pros::delay(500);
-}
-
-void moveLeft(int dist){
-	int rot = (dist*1000)/13;
-
-	front_left_mtr.move_relative(-rot, MOTOR_MAX_SPEED);
-	front_right_mtr.move_relative(-rot, MOTOR_MAX_SPEED);
-	back_left_mtr.move_relative(rot, MOTOR_MAX_SPEED);
-	back_right_mtr.move_relative(rot, MOTOR_MAX_SPEED);
-
-	pros::delay(500);
-}
-
-void moveRight(int dist){
-	int rot = (dist*1000)/13;
-
-	front_left_mtr.move_relative(rot, MOTOR_MAX_SPEED);
-	front_right_mtr.move_relative(rot, MOTOR_MAX_SPEED);
-	back_left_mtr.move_relative(-rot, MOTOR_MAX_SPEED);
-	back_right_mtr.move_relative(-rot, MOTOR_MAX_SPEED);
-
-	pros::delay(500);
-}
-
-void rotateClockwise(int angle){
-	int rot = (angle*1000)/81;
-
-	front_left_mtr.move_relative(rot, MOTOR_MAX_SPEED);
-	front_right_mtr.move_relative(rot, MOTOR_MAX_SPEED);
-	back_left_mtr.move_relative(rot, MOTOR_MAX_SPEED);
-	back_right_mtr.move_relative(rot, MOTOR_MAX_SPEED);
-
-	pros::delay(500);
-}
-
-void rotateCounterClockwise(int angle){
-	int rot = -(angle*1000)/81;
-
-	front_left_mtr.move_relative(rot, MOTOR_MAX_SPEED);
-	front_right_mtr.move_relative(rot, MOTOR_MAX_SPEED);
-	back_left_mtr.move_relative(rot, MOTOR_MAX_SPEED);
-	back_right_mtr.move_relative(rot, MOTOR_MAX_SPEED);
-
-	pros::delay(500);
-}
-
-void shoot(int vel){
-
-	Shooter1.move_velocity(vel);
-	Shooter2.move_velocity(-(vel));
-
-	pros::delay(800);
-	indexer_piston.set_value(true);
-
-	pros::delay(300);
-	indexer_piston.set_value(false);
-
-	pros::delay(100);
-	Shooter1.move_velocity(0);
-	Shooter2.move_velocity(0);
-
-	pros::delay(500);
-}
-
-// 300 works for team side
-void spin_roller(int time) {
-	IntakeR.move_velocity(-200);
-	IntakeL.move_velocity(200);
-	Intake3.move_velocity(-600);
-	pros::delay(time);
-	IntakeR.move_velocity(0);
-	IntakeL.move_velocity(0);
-	Intake3.move_velocity(0);
-}
-
+/**
+ * A callback function for LLEMU's center button.
+ *
+ * When this callback is fired, it will toggle line 2 of the LCD text between
+ * "I was pressed!" and nothing.
+ */
 void on_center_button() {
 	static bool pressed = false;
 	pressed = !pressed;
@@ -195,156 +62,137 @@ void on_center_button() {
 	}
 }
 
+// Methods to get angle from pros gyroscope
+double getRawRotation() {
+	double heading = gyro.get_heading();
+	return (heading == PROS_ERR_F ? 0 : heading);
+}
+
+double getRotation() {
+	return getRawRotation() - gyro_offset;
+}
+
+void resetRotation() {
+	gyro_offset = getRawRotation();
+}
+
+/**
+ * Runs initialization code. This occurs as soon as the program is started.
+ *
+ * All other competition modes are blocked by initialize; it is recommended
+ * to keep execution time for this mode under a few seconds.
+ */
 void initialize() {
 	pros::lcd::initialize();
+	pros::lcd::set_text(1, "Hello PROS User!");
 
 	pros::lcd::register_btn1_cb(on_center_button);
 	resetRotation();
-	pros::lcd::set_background_color(50,191,68);
-	pros::lcd::set_text_color(198, 146, 20);
 }
 
+/**
+ * Runs while the robot is in the disabled state of Field Management System or
+ * the VEX Competition Switch, following either autonomous or opcontrol. When
+ * the robot is enabled, this task will exit.
+ */
 void disabled() {}
 
+/**
+ * Runs after initialize(), and before autonomous when connected to the Field
+ * Management System or the VEX Competition Switch. This is intended for
+ * competition-specific initialization routines, such as an autonomous selector
+ * on the LCD.
+ *
+ * This task will exit when the robot is enabled and autonomous or opcontrol
+ * starts.
+ */
 void competition_initialize() {
 	gyro.reset();
 }
 
-// start on the tile right of the roller
-void autonomous() {
-	/*
-	moveRight(40);
-	pros::delay(1000);
-	moveForward(10);
-	pros::delay(1000);
-	spin_roller(300);
-	pros::delay(1000);
-	*/
-	// shoot(200);
-	// pros::delay(1000);
-	// shoot(200);
-}
+/**
+ * Runs the user autonomous code. This function will be started in its own task
+ * with the default priority and stack size whenever the robot is enabled via
+ * the Field Management System or the VEX Competition Switch in the autonomous
+ * mode. Alternatively, this function may be called in initialize or opcontrol
+ * for non-competition testing purposes.
+ *
+ * If the robot is disabled or communications is lost, the autonomous task
+ * will be stopped. Re-enabling the robot will restart the task, not re-start it
+ * from where it left off.
+ */
+void autonomous() {}
 
+/**
+ * Runs the operator control code. This function will be started in its own task
+ * with the default priority and stack size whenever the robot is enabled via
+ * the Field Management System or the VEX Competition Switch in the operator
+ * control mode.
+ *
+ * If no competition control is connected, this function will run immediately
+ * following initialize().
+ *
+ * If the robot is disabled or communications is lost, the
+ * operator control task will be stopped. Re-enabling the robot will restart the
+ * task, not resume it from where it left off.
+ */
 void opcontrol() {
- 	bool indexer_piston_state = false;
-	pros::Controller master(pros::E_CONTROLLER_MASTER);
+	// Flywheel motor speed
+	int32_t flywheel_speed = 10;
+	bool indexer_piston_state = false;
 
-	int motorOn = 0;
-	int rpm;
 	while (true) {
+		// print gyro angle
+		pros::lcd::set_text(3, "Angle: " + std::to_string(getRotation()));
+		
 
-		//field centric x-drive
-		int x = master.get_analog(ANALOG_LEFT_X);
-		int y = master.get_analog(ANALOG_LEFT_Y);
-		int r = master.get_analog(ANALOG_RIGHT_X);
-		double angle = getRotation() * M_PI / 180; // converting to radians
+		// computing joystick inputs for arcade drive
+		int forward_pow = master.get_analog(ANALOG_LEFT_Y);
+		int turn_pow = master.get_analog(ANALOG_RIGHT_X);
+		int left_pow = forward_pow + turn_pow;
+		int right_pow = forward_pow - turn_pow;
 
-		int h = x * cos(angle) - y * sin(angle);
-		int v = x * sin(angle) + y * cos(angle);
-
-		front_left_mtr.move(v+h+r);
-		front_right_mtr.move(-v+h+r);
-		back_left_mtr.move(v-h+r);
-		back_right_mtr.move(-v-h+r);
-
-		std::string print_angle = std::to_string(angle * 180 / M_PI);
-		pros::lcd::set_text(2, "Angle: " + print_angle);
-
-		pros::lcd::set_text(3, "RPM1: " + std::to_string(18*Shooter2.get_actual_velocity())); //print rpm of shooter motors for testing
-		pros::lcd::set_text(4, "RPM2: " + std::to_string(18*Shooter1.get_actual_velocity()));
-		pros::lcd::set_text(5, "Current1: " + std::to_string(Shooter2.get_current_draw()));
-		pros::lcd::set_text(6, "Current2: " + std::to_string(Shooter1.get_current_draw()));
-
-
-		if(master.get_digital(ShooterFast)) { //turn on shooter for high speed
-			motorOn = 1;
-			rpm = 166;
+		// drive motor control (backward motors spin in opposite direction)
+		right_fwd_mtr.move(right_pow);
+		right_upp_mtr.move(-right_pow);
+		right_bwd_mtr.move(right_pow);
+		left_fwd_mtr.move(-left_pow);
+		left_upp_mtr.move(left_pow);
+		left_bwd_mtr.move(-left_pow);
+		
+		// intake motor control
+		if (master.get_digital(DIGITAL_R1)){
+			intake_mtr.move_velocity(600);
+		} else if (master.get_digital(DIGITAL_R2)) {
+			intake_mtr.move_velocity(-600);
+		} else {
+			intake_mtr.move_velocity(100);
 		}
-		else if(master.get_digital(ShooterOff)) { //turn off shooter
-			motorOn = 0;
-		}
-		else if(master.get_digital(DIGITAL_L1)) { //turn on shooter for lower speed
-			motorOn = 1;
-			rpm = 110;
-		}
-
-		//set motor voltages to values to either max or zero voltage
-		if (motorOn == 0) {
-			Shooter1.move_voltage(0);
-			Shooter2.move_voltage(0);
-		}
-		else if (motorOn == 1) {
- 			Shooter1.move_velocity(rpm);
- 			Shooter2.move_velocity(-rpm);
-		}
-
-		if(master.get_digital_new_press(DIGITAL_UP)){
-			rpm = rpm + 5;
-			if(rpm > 200){
-				rpm = 200;
-			}
-			pros::lcd::set_text(1, "RPM_Get: " + std::to_string(rpm));
-	 		Shooter1.move_velocity(rpm);
-	 		Shooter2.move_velocity(-(rpm));
-		}
-		else if(master.get_digital_new_press(DIGITAL_DOWN)){
-			rpm = rpm - 5;
-			if(rpm < 0){
-				rpm = 0;
-			}
-			pros::lcd::set_text(1, "RPM_Get: " + std::to_string(rpm));
-	 		Shooter1.move_velocity(rpm);
-	 		Shooter2.move_velocity(-(rpm));
-		}
-
-		if(master.get_digital_new_press(DIGITAL_A)) {
-			gyro.reset(); //manual reset of gyro for testing
-		}
-
-		if(master.get_digital(IntakeIn))
-		{
-			IntakeR.move_velocity(-200);
-			IntakeL.move_velocity(200);
-			Intake3.move_velocity(-600);
-		}
-		else if(master.get_digital(IntakeOut))
-		{
-			IntakeR.move_velocity(200);
-			IntakeL.move_velocity(-200);
-			Intake3.move_velocity(600);
-		}
-    	else {
-      		IntakeR.move_velocity(0);
-			IntakeL.move_velocity(0);
-			Intake3.move_velocity(0);
-    	}
-
-    if (master.get_digital_new_press(DIGITAL_RIGHT)) {
-      indexer_piston.set_value(indexer_piston_state);
-      indexer_piston_state = !indexer_piston_state;
-    }
-	if (master.get_digital_new_press(DIGITAL_LEFT)) {
-      shoot(150);
-	  pros::delay(1500);
-	  shoot(150);
-	  pros::delay(1500);
-	  shoot(150);
-    }
-	if (master.get_digital_new_press(DIGITAL_L2)) {
-      spin_roller(300);
-    }
-
-		//X-drive
 		/*
-		intx = master.get_analog(ANALOG_LEFT_X);
-		int y = master.get_analog(ANALOG_LEFT_Y);
-		int r = master.get_analog(ANALOG_RIGHT_X);
-		front_left_mtr.move(y+x+r);
-		front_right_mtr.move(-y+x+r);
-		back_left_mtr.move(y-x+r);
-		back_right_mtr.move(-y-x+r);
+			have flywheel at move_velocity(rpm);
+			if A -> rpm = 600
+			if X -> rpm = 100
 		*/
 
-		pros::delay(2);
+		// flywheel motor control
+		if (master.get_digital_new_press(DIGITAL_A)) {
+			flywheel_speed = -100;
+		} else if (master.get_digital_new_press(DIGITAL_X)) {
+			flywheel_speed = 10;
+		}
+		upper_flywheel_mtr.move_velocity(flywheel_speed);
+		lower_flywheel_mtr.move_velocity(flywheel_speed);
+
+		// wing control
+		if (master.get_digital_new_press(DIGITAL_L2)) {
+			left_wing_piston.set_value(true);
+			right_wing_piston.set_value(true);
+		} else if(master.get_digital_new_press(DIGITAL_L1)) {
+			left_wing_piston.set_value(false);
+			right_wing_piston.set_value(false);
+		}
+
+		// hook is a piston, not on robot currently
+		pros::delay(20);
 	}
 }
