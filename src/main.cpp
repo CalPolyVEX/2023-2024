@@ -138,13 +138,18 @@ void autonomous() {}
  */
 void opcontrol() {
 	// Flywheel motor speed
-	int32_t flywheel_speed = 10;
+	int32_t flywheel_speed_upper = 10;
+	int32_t flywheel_speed_lower = 10;
+	int32_t upper_speed_test = -120;
+	int32_t lower_speed_test = -500;
 	bool indexer_piston_state = false;
+	uint32_t timeStamp = 0;
 
 	while (true) {
 		// print gyro angle
-		pros::lcd::set_text(3, "Angle: " + std::to_string(getRotation()));
-		
+		//pros::lcd::set_text(3, "Angle: " + std::to_string(getRotation()));
+		pros::lcd::set_text(3, "Upper Speed: " + std::to_string(abs(upper_speed_test)));
+		pros::lcd::set_text(4, "Lower Speed: " + std::to_string(abs(lower_speed_test)));
 
 		// computing joystick inputs for arcade drive
 		int forward_pow = master.get_analog(ANALOG_LEFT_Y);
@@ -174,14 +179,36 @@ void opcontrol() {
 			if X -> rpm = 100
 		*/
 
-		// flywheel motor control
+		// flywheel motor contro
 		if (master.get_digital_new_press(DIGITAL_A)) {
-			flywheel_speed = -100;
+			flywheel_speed_upper = upper_speed_test;
+			flywheel_speed_lower = lower_speed_test;
 		} else if (master.get_digital_new_press(DIGITAL_X)) {
-			flywheel_speed = 10;
+			timeStamp = pros::c::millis();
+			flywheel_speed_upper = 0;
+			flywheel_speed_lower = 0;
 		}
-		upper_flywheel_mtr.move_velocity(flywheel_speed);
-		lower_flywheel_mtr.move_velocity(flywheel_speed);
+
+		// manual flywheel adjustment code
+		if (master.get_digital_new_press(DIGITAL_UP) && upper_speed_test > -600) {
+			upper_speed_test -= 10;
+		} else if (master.get_digital_new_press(DIGITAL_DOWN) && upper_speed_test < 0) {
+			upper_speed_test += 10;
+		}
+		if (master.get_digital_new_press(DIGITAL_RIGHT) && lower_speed_test > -600) {
+			lower_speed_test -= 10;
+		} else if (master.get_digital_new_press(DIGITAL_LEFT) && lower_speed_test < 0) {
+			lower_speed_test += 10;
+		}
+
+		// set flywheel rest speed back to 10 after waiting for 3 seconds
+		if (timeStamp != 0 && (pros::c::millis() - timeStamp) > 3000) {
+			flywheel_speed_upper = 10;
+			flywheel_speed_lower = 10;
+			timeStamp = 0;
+		}
+		upper_flywheel_mtr.move_velocity(flywheel_speed_upper);
+		lower_flywheel_mtr.move_velocity(flywheel_speed_lower);
 
 		// wing control
 		if (master.get_digital_new_press(DIGITAL_L2)) {
