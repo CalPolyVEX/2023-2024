@@ -1,13 +1,5 @@
 #include "main.h"
 
-/* Clawbot Practice
-#define LEFT_WHEELS_TOP_PORT 13
-#define LEFT_WHEELS_BOTTOM_PORT 14
-#define RIGHT_WHEELS_TOP_PORT 17
-#define RIGHT_WHEELS_BOTTOM_PORT 18
-#define INTAKE_PORT 15
-#define INTAKE_BUTTON DIGITAL_A
-*/
 #define UPPER_FLYWHEEL 1
 #define INTAKE_WHEEL 10
 #define LOWER_FLYWHEEL 15
@@ -76,6 +68,34 @@ void resetRotation() {
 	gyro_offset = getRawRotation();
 }
 
+void drive_straight(int pos){ //implementing a simple p controller for driving straight
+	//get internal motor encoders for a left and right motor
+	double right_pos = right_fwd_mtr.get_position();
+	double left_pos = left_fwd_mtr.get_position();
+
+	double desired_val;
+	int pow;
+	double p = 1.0;
+	double error = desired_val - right_pos;
+
+	while(error > 0){
+		pow = (int)error*p;
+		if (pow > 127){
+			pow = 127;
+		}
+		right_fwd_mtr.move(pow);
+		right_upp_mtr.move(-pow);
+		right_bwd_mtr.move(pow);
+		left_fwd_mtr.move(-pow);
+		left_upp_mtr.move(pow);
+		left_bwd_mtr.move(-pow);
+
+		right_pos = right_fwd_mtr.get_position();
+		error = desired_val - right_pos;
+	}
+
+}
+
 /**
  * Runs initialization code. This occurs as soon as the program is started.
  *
@@ -84,10 +104,18 @@ void resetRotation() {
  */
 void initialize() {
 	pros::lcd::initialize();
-	pros::lcd::set_text(1, "Hello PROS User!");
 
 	pros::lcd::register_btn1_cb(on_center_button);
 	resetRotation();
+
+	right_fwd_mtr.set_brake_mode(pros::E_MOTOR_BRAKE_COAST);
+	right_upp_mtr.set_brake_mode(pros::E_MOTOR_BRAKE_COAST);
+	right_bwd_mtr.set_brake_mode(pros::E_MOTOR_BRAKE_COAST);
+	left_fwd_mtr.set_brake_mode(pros::E_MOTOR_BRAKE_COAST);
+	left_upp_mtr.set_brake_mode(pros::E_MOTOR_BRAKE_COAST);
+	left_bwd_mtr.set_brake_mode(pros::E_MOTOR_BRAKE_COAST);
+	right_fwd_mtr.set_encoder_units(pros::E_MOTOR_ENCODER_DEGREES);
+	left_fwd_mtr.set_encoder_units(pros::E_MOTOR_ENCODER_DEGREES);
 }
 
 /**
@@ -108,6 +136,15 @@ void disabled() {}
  */
 void competition_initialize() {
 	gyro.reset();
+
+	right_fwd_mtr.set_brake_mode(pros::E_MOTOR_BRAKE_COAST);
+	right_upp_mtr.set_brake_mode(pros::E_MOTOR_BRAKE_COAST);
+	right_bwd_mtr.set_brake_mode(pros::E_MOTOR_BRAKE_COAST);
+	left_fwd_mtr.set_brake_mode(pros::E_MOTOR_BRAKE_COAST);
+	left_upp_mtr.set_brake_mode(pros::E_MOTOR_BRAKE_COAST);
+	left_bwd_mtr.set_brake_mode(pros::E_MOTOR_BRAKE_COAST);
+	right_fwd_mtr.set_encoder_units(pros::E_MOTOR_ENCODER_DEGREES);
+	left_fwd_mtr.set_encoder_units(pros::E_MOTOR_ENCODER_DEGREES);
 }
 
 /**
@@ -148,8 +185,12 @@ void opcontrol() {
 	while (true) {
 		// print gyro angle
 		//pros::lcd::set_text(3, "Angle: " + std::to_string(getRotation()));
-		pros::lcd::set_text(3, "Upper Speed: " + std::to_string(abs(upper_speed_test)));
-		pros::lcd::set_text(4, "Lower Speed: " + std::to_string(abs(lower_speed_test)));
+		pros::lcd::set_text(2, "Upper Speed: " + std::to_string(abs(upper_speed_test)));
+		pros::lcd::set_text(3, "Lower Speed: " + std::to_string(abs(lower_speed_test)));
+		int left_pos = left_fwd_mtr.get_position();
+		int right_pos = right_fwd_mtr.get_position();
+		pros::lcd::set_text(4, "Left Forward Motor Encoder: " + std::to_string(abs(left_pos)));
+		pros::lcd::set_text(5, "Right Forward Motor Encoder: " + std::to_string(abs(right_pos)));
 
 		// computing joystick inputs for arcade drive
 		int forward_pow = master.get_analog(ANALOG_LEFT_Y);
@@ -164,7 +205,7 @@ void opcontrol() {
 		left_fwd_mtr.move(-left_pow);
 		left_upp_mtr.move(left_pow);
 		left_bwd_mtr.move(-left_pow);
-		
+
 		// intake motor control
 		if (master.get_digital(DIGITAL_R1)){
 			intake_mtr.move_velocity(600);
@@ -173,11 +214,6 @@ void opcontrol() {
 		} else {
 			intake_mtr.move_velocity(100);
 		}
-		/*
-			have flywheel at move_velocity(rpm);
-			if A -> rpm = 600
-			if X -> rpm = 100
-		*/
 
 		// flywheel motor contro
 		if (master.get_digital_new_press(DIGITAL_A)) {
