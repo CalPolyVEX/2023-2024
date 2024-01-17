@@ -68,20 +68,20 @@ void resetRotation() {
 	gyro_offset = getRawRotation();
 }
 
-void drive_straight(int pos){ //implementing a simple p controller for driving straight
+void drive_straight(double dist, int maxPow = 50, double p = 0.3, int millis = 10000) { //implementing a simple p controller for driving straight
 	//get internal motor encoders for a left and right motor
 	double right_pos = right_fwd_mtr.get_position();
 	double left_pos = left_fwd_mtr.get_position();
+	uint32_t init_time = pros::c::millis();
 
-	double desired_val;
+	double desired_val = (15.6 * dist) + right_pos;
 	int pow;
-	double p = 1.0;
 	double error = desired_val - right_pos;
 
-	while(error > 0){
-		pow = (int)error*p;
-		if (pow > 127){
-			pow = 127;
+	while(abs(error) > 15.6 && pros::c::millis() - init_time < millis){
+		pow = (int) (error*p);
+		if (pow > 30){
+			pow = (pow > 0) ? maxPow:-maxPow;
 		}
 		right_fwd_mtr.move(pow);
 		right_upp_mtr.move(-pow);
@@ -92,8 +92,75 @@ void drive_straight(int pos){ //implementing a simple p controller for driving s
 
 		right_pos = right_fwd_mtr.get_position();
 		error = desired_val - right_pos;
+		pros::lcd::set_text(0, "Error: " + std::to_string(error));
 	}
 
+	right_fwd_mtr.move(0);
+	right_upp_mtr.move(0);
+	right_bwd_mtr.move(0);
+	left_fwd_mtr.move(0);
+	left_upp_mtr.move(0);
+	left_bwd_mtr.move(0);
+}
+
+void drive_timed(int millis, int pow = 50) {
+	uint32_t init_time = pros::c::millis();
+	
+	while (pros::c::millis() - init_time < millis) {
+		right_fwd_mtr.move(pow);
+		right_upp_mtr.move(-pow);
+		right_bwd_mtr.move(pow);
+		left_fwd_mtr.move(-pow);
+		left_upp_mtr.move(pow);
+		left_bwd_mtr.move(-pow);
+	}
+
+	right_fwd_mtr.move(0);
+	right_upp_mtr.move(0);
+	right_bwd_mtr.move(0);
+	left_fwd_mtr.move(0);
+	left_upp_mtr.move(0);
+	left_bwd_mtr.move(0);
+}
+
+void turn(double angle, int maxPow = 50) { //implementing a simple p controller for driving straight
+	//get internal motor encoders for a left and right motor
+	double gyro_angle = getRotation();
+	if (gyro_angle > 180) {
+		gyro_angle -= 360;
+	}
+
+	double desired_val = angle - gyro_angle;
+	int pow;
+	double p = 0.7;
+	double error = desired_val - gyro_angle;
+
+	while(abs(error) > 2) {
+		pow = (int) (error*p);
+		if (pow > 30){
+			pow = (pow > 0) ? maxPow:-maxPow;
+		}
+		right_fwd_mtr.move(-pow);
+		right_upp_mtr.move(pow);
+		right_bwd_mtr.move(-pow);
+		left_fwd_mtr.move(-pow);
+		left_upp_mtr.move(pow);
+		left_bwd_mtr.move(-pow);
+
+		gyro_angle = getRotation();
+		if (gyro_angle > 180) {
+			gyro_angle -= 360;
+		}
+		error = desired_val - gyro_angle;
+		pros::lcd::set_text(0, "Error: " + std::to_string(error));
+	}
+
+	right_fwd_mtr.move(0);
+	right_upp_mtr.move(0);
+	right_bwd_mtr.move(0);
+	left_fwd_mtr.move(0);
+	left_upp_mtr.move(0);
+	left_bwd_mtr.move(0);
 }
 
 /**
@@ -103,6 +170,7 @@ void drive_straight(int pos){ //implementing a simple p controller for driving s
  * to keep execution time for this mode under a few seconds.
  */
 void initialize() {
+	gyro.reset();
 	pros::lcd::initialize();
 
 	pros::lcd::register_btn1_cb(on_center_button);
@@ -114,8 +182,8 @@ void initialize() {
 	left_fwd_mtr.set_brake_mode(pros::E_MOTOR_BRAKE_COAST);
 	left_upp_mtr.set_brake_mode(pros::E_MOTOR_BRAKE_COAST);
 	left_bwd_mtr.set_brake_mode(pros::E_MOTOR_BRAKE_COAST);
-	right_fwd_mtr.set_encoder_units(pros::E_MOTOR_ENCODER_DEGREES);
-	left_fwd_mtr.set_encoder_units(pros::E_MOTOR_ENCODER_DEGREES);
+	right_fwd_mtr.set_encoder_units(pros::E_MOTOR_ENCODER_ROTATIONS);
+	left_fwd_mtr.set_encoder_units(pros::E_MOTOR_ENCODER_ROTATIONS);
 }
 
 /**
@@ -143,8 +211,8 @@ void competition_initialize() {
 	left_fwd_mtr.set_brake_mode(pros::E_MOTOR_BRAKE_COAST);
 	left_upp_mtr.set_brake_mode(pros::E_MOTOR_BRAKE_COAST);
 	left_bwd_mtr.set_brake_mode(pros::E_MOTOR_BRAKE_COAST);
-	right_fwd_mtr.set_encoder_units(pros::E_MOTOR_ENCODER_DEGREES);
-	left_fwd_mtr.set_encoder_units(pros::E_MOTOR_ENCODER_DEGREES);
+	right_fwd_mtr.set_encoder_units(pros::E_MOTOR_ENCODER_COUNTS);
+	left_fwd_mtr.set_encoder_units(pros::E_MOTOR_ENCODER_ROTATIONS);
 }
 
 /**
@@ -158,7 +226,19 @@ void competition_initialize() {
  * will be stopped. Re-enabling the robot will restart the task, not re-start it
  * from where it left off.
  */
-void autonomous() {}
+void autonomous() {
+	//drive_straight(20);
+	//turn(-90);
+	intake_mtr.move_velocity(600);
+	upper_flywheel_mtr.move_velocity(10);
+	lower_flywheel_mtr.move_velocity(10);
+	drive_timed(1000, 75);
+	pros::delay(1000);
+	intake_mtr.move_velocity(100);
+	drive_straight(-5, 50, 1.0, 2000);
+	turn(105);
+	drive_straight(10);
+}
 
 /**
  * Runs the operator control code. This function will be started in its own task
@@ -184,7 +264,7 @@ void opcontrol() {
 
 	while (true) {
 		// print gyro angle
-		//pros::lcd::set_text(3, "Angle: " + std::to_string(getRotation()));
+		pros::lcd::set_text(0, "Angle: " + std::to_string(getRotation()));
 		pros::lcd::set_text(2, "Upper Speed: " + std::to_string(abs(upper_speed_test)));
 		pros::lcd::set_text(3, "Lower Speed: " + std::to_string(abs(lower_speed_test)));
 		int left_pos = left_fwd_mtr.get_position();
@@ -215,7 +295,7 @@ void opcontrol() {
 			intake_mtr.move_velocity(100);
 		}
 
-		// flywheel motor contro
+		// flywheel motor control
 		if (master.get_digital_new_press(DIGITAL_A)) {
 			flywheel_speed_upper = upper_speed_test;
 			flywheel_speed_lower = lower_speed_test;
